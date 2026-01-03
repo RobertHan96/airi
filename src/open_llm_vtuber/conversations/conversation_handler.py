@@ -33,18 +33,21 @@ async def handle_conversation_trigger(
     metadata = None
 
     if msg_type == "ai-speak-signal":
-        try:
-            # Get proactive speak prompt from config
-            prompt_name = "proactive_speak_prompt"
-            prompt_file = context.system_config.tool_prompts.get(prompt_name)
-            if prompt_file:
-                user_input = prompt_loader.load_util(prompt_file)
-            else:
-                logger.warning("Proactive speak prompt not configured, using default")
+        if data.get("text"):
+            user_input = data.get("text")
+        else:
+            try:
+                # Get proactive speak prompt from config
+                prompt_name = "proactive_speak_prompt"
+                prompt_file = context.system_config.tool_prompts.get(prompt_name)
+                if prompt_file:
+                    user_input = prompt_loader.load_util(prompt_file)
+                else:
+                    logger.warning("Proactive speak prompt not configured, using default")
+                    user_input = "Please say something."
+            except Exception as e:
+                logger.error(f"Error loading proactive speak prompt: {e}")
                 user_input = "Please say something."
-        except Exception as e:
-            logger.error(f"Error loading proactive speak prompt: {e}")
-            user_input = "Please say something."
 
         # Add metadata to indicate this is a proactive speak request
         # that should be skipped in both memory and history

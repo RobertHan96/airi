@@ -3,6 +3,19 @@ In your response, use the keywords provided below to express facial expressions 
 
 Here are all the expression keywords you can use. Use them regularly:
 - [<insert_emomap_keys>]
+- [laughs]
+- [laughs harder]
+- [starts laughing]
+- [wheezing]
+- [whispers]
+- [sighs]
+- [exhales]
+- [sarcastic]
+- [curious]
+- [excited]
+- [crying]
+- [snorts]
+- [mischievously]
 
 ## Examples
 Here are some examples of how to use expressions in your responses:

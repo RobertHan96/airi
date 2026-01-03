@@ -9,7 +9,9 @@ It uses FastAPI for the server and Starlette for static file serving.
 import os
 import shutil
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles as StarletteStaticFiles
@@ -72,12 +74,33 @@ class WebSocketServer:
     """
 
     def __init__(self, config: Config, default_context_cache: ServiceContext = None):
-        self.app = FastAPI(title="Open-LLM-VTuber Server")  # Added title for clarity
         self.config = config
         self.default_context_cache = (
             default_context_cache or ServiceContext()
         )  # Use provided context or initialize a new empty one waiting to be loaded
         # It will be populated during the initialize method call
+
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            # Startup: Initialize the service context
+            logger.info("Initializing server context...")
+            try:
+                # If the cache is not fully loaded (basic check), initialize it
+                # We assume if system_config is missing, it's not loaded.
+                if not self.default_context_cache.system_config:
+                    await self.initialize()
+                logger.info("Server context initialized successfully.")
+            except Exception as e:
+                logger.critical(f"Failed to initialize server context: {e}")
+                raise e
+            
+            yield
+            
+            # Shutdown: Clean up resources
+            logger.info("Shutting down server...")
+            await self.default_context_cache.close()
+
+        self.app = FastAPI(title="Open-LLM-VTuber Server", lifespan=lifespan)
 
         # Add global CORS middleware
         self.app.add_middleware(

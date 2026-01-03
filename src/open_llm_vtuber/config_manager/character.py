@@ -8,6 +8,7 @@ from .vad import VADConfig
 from .tts_preprocessor import TTSPreprocessorConfig
 
 from .agent import AgentConfig
+from .vision import VisionConfig
 
 
 class CharacterConfig(I18nMixin):
@@ -27,6 +28,7 @@ class CharacterConfig(I18nMixin):
     tts_preprocessor_config: TTSPreprocessorConfig = Field(
         ..., alias="tts_preprocessor_config"
     )
+    vision_config: VisionConfig = Field(default=VisionConfig(), alias="vision_config")
 
     DESCRIPTIONS: ClassVar[Dict[str, Description]] = {
         "conf_name": Description(
@@ -66,6 +68,10 @@ class CharacterConfig(I18nMixin):
         ),
         "avatar": Description(
             en="Avatar image path for the character", zh="角色头像图片路径"
+        ),
+        "vision_config": Description(
+            en="Configuration for vision/screen capture capabilities",
+            zh="视觉/屏幕捕捉功能配置",
         ),
     }
 

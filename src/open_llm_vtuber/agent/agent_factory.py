@@ -124,6 +124,7 @@ class AgentFactory:
                 tts_preprocessor_config=tts_preprocessor_config,
                 faster_first_response=settings.get("faster_first_response"),
                 segment_method=settings.get("segment_method"),
+                token=settings.get("token"),
                 host=settings.get("host"),
                 port=settings.get("port"),
             )

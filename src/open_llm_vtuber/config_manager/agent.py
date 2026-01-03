@@ -157,6 +157,8 @@ class LettaConfig(I18nMixin, BaseModel):
     faster_first_response: Optional[bool] = Field(True, alias="faster_first_response")
     segment_method: Literal["regex", "pysbd"] = Field("pysbd", alias="segment_method")
 
+    token: Optional[str] = Field(None, alias="token")
+
     DESCRIPTIONS: ClassVar[Dict[str, Description]] = {
         "host": Description(
             en="Host address for the Letta server", zh="Letta服务器的主机地址"
@@ -168,6 +170,10 @@ class LettaConfig(I18nMixin, BaseModel):
         "id": Description(
             en="Agent instance ID running on the Letta server",
             zh="指定Letta服务器上运行的Agent实例id",
+        ),
+        "token": Description(
+            en="Authentication token/API key for Letta server",
+            zh="Letta服务器的认证令牌/API密钥",
         ),
     }
 

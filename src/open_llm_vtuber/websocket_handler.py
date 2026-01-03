@@ -27,6 +27,7 @@ from .conversations.conversation_handler import (
     handle_group_interrupt,
     handle_individual_interrupt,
 )
+from .vision.capture import ScreenCapture
 
 
 class MessageType(Enum):
@@ -69,6 +70,8 @@ class WebSocketHandler:
         self.current_conversation_tasks: Dict[str, Optional[asyncio.Task]] = {}
         self.default_context_cache = default_context_cache
         self.received_data_buffers: Dict[str, np.ndarray] = {}
+        self.screen_capturer = ScreenCapture()
+        self.vision_tasks: Dict[str, asyncio.Task] = {}
 
         # Message handlers mapping
         self._message_handlers = self._init_message_handlers()
@@ -124,6 +127,10 @@ class WebSocketHandler:
             )
 
             logger.info(f"Connection established for client {client_uid}")
+
+            # Start vision task if enabled
+            if session_service_context.character_config.vision_config.enabled:
+                self._start_vision_task(client_uid)
 
         except Exception as e:
             logger.error(
@@ -228,13 +235,28 @@ class WebSocketHandler:
                         json.dumps({"type": "error", "message": str(e)})
                     )
                     continue
-
+                    
         except WebSocketDisconnect:
             logger.info(f"Client {client_uid} disconnected")
             raise
         except Exception as e:
             logger.error(f"Fatal error in WebSocket communication: {e}")
             raise
+
+    def _truncate_log_data(self, data: dict) -> dict:
+        """Helper to truncate verbose data like base64 images for logging"""
+        data_copy = data.copy()
+        if "images" in data_copy:
+            data_copy["images"] = [
+                {
+                    **img, 
+                    "data": f"<base64 data set ({len(img.get('data', ''))} chars)>" 
+                    if img.get("source") == "base64" or img.get("data", "").startswith("data:") 
+                    else img.get("data")
+                } 
+                for img in data_copy.get("images", [])
+            ]
+        return data_copy
 
     async def _route_message(
         self, websocket: WebSocket, client_uid: str, data: WSMessage
@@ -251,6 +273,10 @@ class WebSocketHandler:
         if not msg_type:
             logger.warning("Message received without type")
             return
+
+        # Log message (truncated if necessary)
+        if msg_type != "mic-audio-data": # avoid spamming audio data logs
+            logger.debug(f"Received message: {self._truncate_log_data(data)}")
 
         handler = self._message_handlers.get(msg_type)
         if handler:
@@ -321,6 +347,13 @@ class WebSocketHandler:
         self.client_contexts.pop(client_uid, None)
         self.received_data_buffers.pop(client_uid, None)
         self.chat_group_manager.client_group_map.pop(client_uid, None)
+        
+        # Cancel vision task
+        if client_uid in self.vision_tasks:
+            task = self.vision_tasks[client_uid]
+            if task and not task.done():
+                task.cancel()
+            self.vision_tasks.pop(client_uid, None)
 
         if client_uid in self.current_conversation_tasks:
             task = self.current_conversation_tasks[client_uid]
@@ -610,3 +643,57 @@ class WebSocketHandler:
             await websocket.send_json({"type": "heartbeat-ack"})
         except Exception as e:
             logger.error(f"Error sending heartbeat acknowledgment: {e}")
+
+    def _start_vision_task(self, client_uid: str) -> None:
+        """Starts the background vision loop task for a client"""
+        logger.info(f"Starting vision loop for client {client_uid}")
+        
+        async def vision_loop():
+            context = self.client_contexts.get(client_uid)
+            if not context:
+                return
+
+            interval = context.character_config.vision_config.capture_interval
+            prompt = context.character_config.vision_config.prompt
+
+            try:
+                while client_uid in self.client_connections:
+                    # check if the conversation is ongoing
+                    if (
+                        client_uid not in self.current_conversation_tasks
+                        or self.current_conversation_tasks[client_uid] is None
+                        or self.current_conversation_tasks[client_uid].done()
+                    ):
+                        logger.debug(f"Capturing screen for client {client_uid}")
+                        image_data = self.screen_capturer.capture_screen()
+                        
+                        if image_data:
+                            # Construct payload similar to AI-speak-signal but with image
+                            payload = {
+                                "type": "text-input",
+                                "text": prompt,
+                                "images": [
+                                    {
+                                        "source": "screen", 
+                                        "data": image_data,
+                                        "mime_type": "image/png"
+                                    }
+                                ],
+                                "metadata": {
+                                    "skip_history": True
+                                }
+                            }
+                            
+                            # Trigger conversation
+                            # We need to manually invoke the handler
+                            websocket = self.client_connections.get(client_uid)
+                            if websocket:
+                                await self._handle_conversation_trigger(websocket, client_uid, payload)
+                        
+                    await asyncio.sleep(interval)
+            except asyncio.CancelledError:
+                logger.info(f"Vision loop cancelled for client {client_uid}")
+            except Exception as e:
+                logger.error(f"Error in vision loop for client {client_uid}: {e}")
+
+        self.vision_tasks[client_uid] = asyncio.create_task(vision_loop())

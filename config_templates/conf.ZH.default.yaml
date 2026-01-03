@@ -35,6 +35,13 @@ character_config:
   character_name: 'Mao' # 将在群聊中使用，并显示为 AI 的名称。
   avatar: 'mao.png' # 建议使用正方形图像作为头像。将其保存到 avatars 文件夹中。留空则使用角色名称的首字母作为头像。
   human_name: 'Human' # 将在群聊中使用，并显示为人类的名称。
+  
+  # 视觉/屏幕捕捉功能配置
+  vision_config:
+    enabled: False # 启用屏幕捕捉视觉循环
+    capture_interval: 10.0 # 屏幕捕捉之间的时间间隔（秒）
+    prompt: "这是我的屏幕画面，请通过画面猜测我在干什么并进行自然的解说" # 发送给AI的提示词（附带屏幕截图）
+
 
   # ============== 提示词 ==============
 

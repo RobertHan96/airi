@@ -26,10 +26,11 @@ class LettaAgent(AgentInterface):
         segment_method: str = "pysbd",
         host: str = "localhost",
         port: int = 8283,
+        token: str = None,
     ):
         super().__init__()
         self.url = f"http://{host}:{port}"
-        self.client = Letta(base_url=self.url)
+        self.client = Letta(base_url=self.url, token=token)
         self.id = id
         # Initialize decorator parameters
         self._tts_preprocessor_config = tts_preprocessor_config
@@ -111,7 +112,7 @@ class LettaAgent(AgentInterface):
 
     def _to_messages(self, input_data: BatchInput) -> List[Dict[str, Any]]:
         """
-        Prepare messages list without image support.
+        Prepare messages list with image support.
         """
         messages = []
 
@@ -119,6 +120,39 @@ class LettaAgent(AgentInterface):
             content = []
             text_content = self._to_text_prompt(input_data)
             content.append({"type": "text", "text": text_content})
+            
+            for img in input_data.images:
+                data_str = img.data.strip()
+                # Remove data URI prefix if present, as Letta expects just the base64 data under 'data'
+                # but with media_type specified separately
+                if data_str.startswith("data:image"):
+                    # Extract mime type and data
+                    # Format: data:image/png;base64,....
+                    try:
+                        header, base64_data = data_str.split(",", 1)
+                        if ";base64" in header:
+                            mime_type = header.split(";")[0].split(":")[1]
+                        else:
+                            # Fallback if format is weird but starts with data:image
+                            mime_type = "image/jpeg"
+                        base64_data = base64_data.strip()
+                    except ValueError:
+                         # In case split fails
+                         mime_type = "image/jpeg"
+                         base64_data = data_str.replace("data:image", "").split("base64")[-1].strip()
+                else:
+                    mime_type = "image/jpeg"
+                    base64_data = data_str.strip()
+
+                content.append({
+                    "type": "image", 
+                    "source": {
+                        "type": "base64",
+                        "media_type": mime_type,
+                        "data": base64_data
+                    }
+                })
+            
             user_message = {"role": "user", "content": content}
         else:
             user_message = {"role": "user", "content": self._to_text_prompt(input_data)}
